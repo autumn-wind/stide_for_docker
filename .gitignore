@@ -1,0 +1,14 @@
+*
+!.gitignore
+!*.h
+!*.c
+!*.C
+!*.cpp
+!*.sh
+!Makefile
+!README
+!COPYING
+!sample.config
+!src
+!include
+!trace-part
