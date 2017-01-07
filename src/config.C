@@ -27,14 +27,14 @@ using std::endl;
  * Output: Nothing                                                    *
  *********************************************************************/
 
-Config::Config(const int argc, const char *argv[]) 
+Config::Config() 
 {
   vector<OptInfo> opt_array(NUM_OPTS);
   InitOptArray(opt_array);
 
   SetDefaults();
 
-  ReadCommandLine(argc, argv, opt_array);
+  //ReadCommandLine(argc, argv, opt_array);
 
   ReadConfigFile(opt_array);
 

@@ -14,7 +14,7 @@ using std::ifstream;
 
 class Config {
   public:
-    Config(const int argc, const char *argv[]);  // Constructor; reads
+    Config();  // Constructor; reads
 				     // configuration file and command
 				     // line arguments
     string cfg_name;                 // Name of configuration file
