@@ -15,28 +15,19 @@
 #include <semaphore.h>
 
 #include "common.h"
+#include "syscall_info.h"
+#include "sbuf.h"
 
 extern void* stide_for_docker(void *);
 
 #define STACK_SIZE (1024 * 1024)
 
 #define MAX_PROCESS_IN_CON 50
+#define BUFFER_SIZE (1024 * 1024)
 
 using namespace std;
 
-struct pro_con_bfr {
-	pid_t pid;
-	int syscall_nr;
-} bfr;
-
-//mutex lock used by tracer for writing file or buffer
-pthread_mutex_t lock;
-
-//sem used by tracer(producer) and stide(consumer) thread
-sem_t empty_buffer, full_buffer;
-
-//syscall log file
-ofstream flog;
+sbuf_t sbuf;
 
 void* trace_container_process(void *arg) {
 	pid_t tracee = *(pid_t *)arg;
@@ -79,14 +70,12 @@ void* trace_container_process(void *arg) {
 				//printf("%d %lld\n", tracee, regs.orig_rax);
 
 				//pthread_mutex_lock(&lock);
-				//flog << tracee << " " << regs.orig_rax << endl;
 				//pthread_mutex_unlock(&lock);
 
-				sem_wait(&empty_buffer);
-				bfr.pid = tracee;
-				bfr.syscall_nr = regs.orig_rax;
-				flog << tracee << " " << regs.orig_rax << endl;
-				sem_post(&full_buffer);
+                pro_con_bfr item;
+				item.pid = tracee;
+				item.syscall_nr = regs.orig_rax;
+                sbuf_insert(&sbuf, item);
 
 				syscall_enter = false;
 			}
@@ -131,26 +120,12 @@ int main(int argc, char *argv[]) {
 	if (pids_in_con.size() > MAX_PROCESS_IN_CON) 
 		err_EXIT("too many process in container");
 
-	//open syscall log file
-	flog.open("syscall_log.txt", ofstream::out);
-	if (!flog.is_open())
-		err_EXIT("syscall log file open failed");
-
-	//init the mutex
-	if (pthread_mutex_init(&lock, NULL) != 0)
-		err_EXIT("mutex init failed");
-
-	//init the sem
-	if (sem_init(&empty_buffer, 0, 1) != 0)
-		err_EXIT("sem init failed");
-	if (sem_init(&full_buffer, 0, 0) != 0)
-		err_EXIT("sem init failed");
-
+    sbuf_init(&sbuf,  BUFFER_SIZE);
 	//record stack for all tracers
-	char **ppstack = (char **)malloc(pids_in_con.size() * sizeof(char *));
-	if(ppstack == NULL) {
-		err_EXIT("malloc");
-	}
+	//char **ppstack = (char **)malloc(pids_in_con.size() * sizeof(char *));
+	//if(ppstack == NULL) {
+		//err_EXIT("malloc");
+	//}
 
 	//thread id of every tracer
 	vector<pthread_t> ptids;
@@ -159,8 +134,8 @@ int main(int argc, char *argv[]) {
 	for(int i = 0; i < pids_in_con.size(); ++i) {
 		
 		//allocate stack for the tracer
-		if ((ppstack[i] = (char *)malloc(STACK_SIZE)) == NULL)
-			err_EXIT("malloc");
+		//if ((ppstack[i] = (char *)malloc(STACK_SIZE)) == NULL)
+			//err_EXIT("malloc");
 
 		//create a new tracer thread
 		pthread_t ptid;
@@ -183,10 +158,7 @@ int main(int argc, char *argv[]) {
 	pthread_join(stide_ptid, NULL);
 
 	//free resources
-	pthread_mutex_destroy(&lock);
-	sem_destroy(&empty_buffer);
-	sem_destroy(&full_buffer);
-	flog.close();
+    sbuf_free(&sbuf);
 
 	return 0;
 }

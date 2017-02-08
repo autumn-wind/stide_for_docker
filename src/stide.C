@@ -33,10 +33,14 @@
 #include <fstream>
 #include <vector>
 #include <map>
+
+#include <semaphore.h>
+
 #include "config.h"
 #include "stream.h"
 #include "flexitree.h"
-#include "semaphore.h"
+#include "syscall_info.h"
+#include "sbuf.h"
 
 #define DBREV 1
 
@@ -180,12 +184,7 @@ void* stide_for_docker(void *)
  **********************************************************************/
 #define MAX_PARIS_LIM 100000
 
-//sem used by tracer(producer) and stide(consumer) thread
-extern sem_t empty_buffer, full_buffer;
-extern struct pro_con_bfr {
-	pid_t pid;
-	int syscall_nr;
-} bfr;
+extern sbuf_t sbuf;
 
 Stream *GetReadyStream(vector<Stream> &streams, HashTableInt
 		&sid_table, int &num_streams_fnd, int
@@ -211,10 +210,10 @@ Stream *GetReadyStream(vector<Stream> &streams, HashTableInt
 		//cin >> ext_sid;
 		//cin >> sval;
 
-		sem_wait(&full_buffer);
-		ext_sid = bfr.pid;
-		sval = bfr.syscall_nr;
-		sem_post(&empty_buffer);
+        pro_con_bfr item;
+        item = sbuf_remove(&sbuf);
+		ext_sid = item.pid;
+		sval = item.syscall_nr;
 
 		int_sid = ExtToInt(sid_table, ext_sid, num_streams_fnd);
 		++total_pairs_read;
