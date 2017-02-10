@@ -179,7 +179,7 @@ void Config::SetDefaults()
   add_output_format = "DB Size: %d\tStream: %s\tPair Number: %p\n";
   compare_output_format = "Pair Number: %p\tStream Number: %s\n";
   lf_size = 1;
-  add_to_db = 0;
+  add_to_db = 1;
   output_graph = 0;
   compute_hdist = 0;
   write_db_stats = 0;

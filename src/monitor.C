@@ -2,6 +2,7 @@
 #include <fstream>
 #include <vector>
 #include <cstdlib>
+#include <cstring>
 
 #include <sys/ptrace.h>
 #include <sys/types.h>
@@ -89,9 +90,11 @@ void* trace_container_process(void *arg) {
 }
 
 int main(int argc, char *argv[]) {
+    if(argc != 3)
+        err_EXIT("wrong argument");
 	
 	//wait for container init totally
-	sleep(2);
+	sleep(5);
 
 	//form the path of container tasks file
 	string path_part1("/sys/fs/cgroup/devices/docker/");
@@ -145,8 +148,14 @@ int main(int argc, char *argv[]) {
 	}
 
 	//create stide thread
+    int add_to_db;
+    if(strcmp(argv[2], "1") == 0)
+        add_to_db = 1;
+    else
+        add_to_db = 0;
+
 	pthread_t stide_ptid;
-	if (pthread_create(&stide_ptid, NULL, stide_for_docker, NULL) != 0)
+	if (pthread_create(&stide_ptid, NULL, stide_for_docker, &add_to_db) != 0)
 		err_EXIT("pthread_create");
 
 	//wait for all the tracer exit

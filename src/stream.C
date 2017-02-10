@@ -17,31 +17,39 @@
 
 using std::cerr;
 using std::endl;
+using std::cout;
+
+int Stream::valid_seq_num = 0;
+int Stream::last_num_of_uniques = 0;
+int Stream::num_of_uniques = 0;
+int Stream::last_num_of_anoms = 0;
+int Stream::num_of_anoms = 0;
+int Stream::counter_of_successive_low_incresement = 0;
 
 void Stream::Init(const Config &cfg, 
-		  const int intern_id, const int extern_id) {
+        const int intern_id, const int extern_id) {
     int i;
-  // initialize all the arrays
-  current_seq.clear();
-  current_seq.reserve(cfg.seq_len);
-  for(i=0; i < cfg.seq_len; i++)
-      current_seq[i] = -1;
-  
-  num_in_seq = -1;
-  num_pairs_read = 0;
-  num_anoms = 0;
-  num_seqs_fnd = 0;
-  int_sid = intern_id;
-  ext_sid = extern_id;
-  max_hdist = 0;
-  seq_hdist = 0;
-  lf.reserve(cfg.lf_size);
-  for(i=0; i < cfg.lf_size; i++)
-    lf[i] = 0;
-  seq_lfc = 0;
-  max_lfc = 0;
-  ready = 0;
-  seq_len = cfg.seq_len;
+    // initialize all the arrays
+    current_seq.clear();
+    current_seq.reserve(cfg.seq_len);
+    for(i=0; i < cfg.seq_len; i++)
+        current_seq[i] = -1;
+
+    num_in_seq = -1;
+    num_pairs_read = 0;
+    num_anoms = 0;
+    num_seqs_fnd = 0;
+    int_sid = intern_id;
+    ext_sid = extern_id;
+    max_hdist = 0;
+    seq_hdist = 0;
+    lf.reserve(cfg.lf_size);
+    for(i=0; i < cfg.lf_size; i++)
+        lf[i] = 0;
+    seq_lfc = 0;
+    max_lfc = 0;
+    ready = 0;
+    seq_len = cfg.seq_len;
 }
 
 /*********************************************************************
@@ -58,31 +66,31 @@ void Stream::Init(const Config &cfg,
 
 void Stream::Append(const int new_value)
 {
-  // missing system call - zero the current sequence 
-  if (new_value == -1) {    
-    num_in_seq = -1;
-    ready = 0;
-  } 
-  else {
-    num_pairs_read++;
-    if (num_in_seq < seq_len - 1) {  // window not yet full
-      num_in_seq++; 
-      current_seq[num_in_seq] = new_value;  
-      if (num_in_seq == seq_len - 1) {
-	ready = 1;
-        ++num_seqs_fnd;
-      }
+    // missing system call - zero the current sequence 
+    if (new_value == -1) {    
+        num_in_seq = -1;
+        ready = 0;
     } 
+    else {
+        num_pairs_read++;
+        if (num_in_seq < seq_len - 1) {  // window not yet full
+            num_in_seq++; 
+            current_seq[num_in_seq] = new_value;  
+            if (num_in_seq == seq_len - 1) {
+                ready = 1;
+                ++num_seqs_fnd;
+            }
+        } 
 
-    else { 
-      // Roll over current_seq array
-      for (int k = 0; k < num_in_seq; k++) {
-	current_seq[k] = current_seq[k + 1];
-      }
-      current_seq[num_in_seq] = new_value;  
-      ++num_seqs_fnd;
+        else { 
+            // Roll over current_seq array
+            for (int k = 0; k < num_in_seq; k++) {
+                current_seq[k] = current_seq[k + 1];
+            }
+            current_seq[num_in_seq] = new_value;  
+            ++num_seqs_fnd;
+        }
     }
-  }
 }
 
 /********************************************************************
@@ -103,7 +111,7 @@ void Stream::Append(const int new_value)
 
 
 int Stream::AddToDB(SeqForest &normal, int &db_size, const int
-		    total_pairs_read, const Config &cfg) const 
+        total_pairs_read, const Config &cfg) const 
 {
     int is_new;
 
@@ -119,6 +127,26 @@ int Stream::AddToDB(SeqForest &normal, int &db_size, const int
     // set to 0, otherwise it will be set to 1.
     is_new = normal.trees[current_seq[0]].InsertSeq(current_seq, 0, seq_len-1);  
     db_size += is_new;
+
+    valid_seq_num += 1;
+    num_of_uniques += is_new;
+
+    // when we read 4K valid_seqs, we should count how many unique seqs we have and calculate the increasement
+    if(( valid_seq_num & 0xFFF ) == 0) {
+        if((num_of_uniques - last_num_of_uniques) * 1.0 / 0x1000 <= 0.001) {
+            counter_of_successive_low_incresement += 1;
+            // if in successive 10 times, the increase rate is less than 0.001, we should stop the monitoring
+            if(counter_of_successive_low_incresement >= 10) {
+                return 2;
+            }
+        }
+        // if the increasement rate is larger than 0.001, make counter_of_successive_low_incresement begin at 0
+        else {
+            counter_of_successive_low_incresement = 0;
+        }
+        last_num_of_uniques = num_of_uniques;
+        cout << counter_of_successive_low_incresement << "  " << last_num_of_uniques << endl;
+    }
 
     if ((is_new && cfg.verbose) || cfg.very_verbose)
     {
@@ -146,23 +174,37 @@ int Stream::AddToDB(SeqForest &normal, int &db_size, const int
  *    Output: none                                                   *
  ********************************************************************/
 
-void Stream::CompareSeq(const Config &cfg, const SeqForest &normal,
-			const int total_pairs_read) 
+int Stream::CompareSeq(const Config &cfg, const SeqForest &normal,
+        const int total_pairs_read) 
 {
-  int is_anom;     // flag to indicate whether current_seq is an anomaly 
+    int is_anom;     // flag to indicate whether current_seq is an anomaly 
 
-  is_anom = ComputeMisses(normal);
-  if ((is_anom) && (cfg.compute_hdist)) {
-    ComputeHDist(normal);
-  }
-  if (cfg.lf_size > 1) {
-    ComputeLF(is_anom, cfg.lf_size);
-  }
-  // if we're in verbose mode and either current_seq is an anomaly or
-  // its locality frame contains an anomaly, report it
-  if ((cfg.very_verbose) || (cfg.verbose && (is_anom || seq_lfc))) {
-    ReportSeq(cfg, total_pairs_read, is_anom);
-  }
+    is_anom = ComputeMisses(normal);
+
+    valid_seq_num += 1;
+    num_of_anoms += is_anom;
+
+    if((valid_seq_num & 0xFF) == 0) {
+        if(( num_of_anoms - last_num_of_anoms ) * 1.0 / 0x100 >= 0.15) {
+            cout << "alarm!" << endl;
+            cout << last_num_of_anoms << "  " << num_of_anoms << "  " << num_of_anoms - last_num_of_anoms << endl;
+            return 0;
+        }
+        last_num_of_anoms = num_of_anoms;
+    }
+
+    if ((is_anom) && (cfg.compute_hdist)) {
+        ComputeHDist(normal);
+    }
+    if (cfg.lf_size > 1) {
+        ComputeLF(is_anom, cfg.lf_size);
+    }
+    // if we're in verbose mode and either current_seq is an anomaly or
+    // its locality frame contains an anomaly, report it
+    if ((cfg.very_verbose) || (cfg.verbose && (is_anom || seq_lfc))) {
+        ReportSeq(cfg, total_pairs_read, is_anom);
+    }
+    return 1;
 }
 
 /*********************************************************************
@@ -179,14 +221,14 @@ void Stream::CompareSeq(const Config &cfg, const SeqForest &normal,
 
 int Stream::ComputeMisses(const SeqForest &normal)
 {
-  if (normal.IsSeqInForest(current_seq, seq_len)) {
-    seq_hdist = 0;
-    return(0);
-  }
+    if (normal.IsSeqInForest(current_seq, seq_len)) {
+        seq_hdist = 0;
+        return(0);
+    }
 
-  // We have an anomaly
-  ++num_anoms;
-  return(1);
+    // We have an anomaly
+    ++num_anoms;
+    return(1);
 } 
 
 /*********************************************************************
@@ -207,28 +249,28 @@ int Stream::ComputeMisses(const SeqForest &normal)
 
 void Stream::ComputeHDist(const SeqForest &normal)
 {
-  int misses_on_this_seq;    // the number of mismatches between
-                             // current_seq and the sequence we're
-			     // comparing it with at the moment
-  seq_hdist = seq_len;       // start with seq_hdist as high as
-			     // possible  
+    int misses_on_this_seq;    // the number of mismatches between
+    // current_seq and the sequence we're
+    // comparing it with at the moment
+    seq_hdist = seq_len;       // start with seq_hdist as high as
+    // possible  
 
-  // We compare current_seq with each sequence in our database tree
-  for (int i = 0; i < normal.trees.size(); i++) { 
-    // Have we seen any sequences starting with element i?  If not, we
-    // can go on to consider sequences starting with element i+1.
-    if (normal.trees_found[i]) { 
-      misses_on_this_seq =
-	normal.trees[i].ComputeHDistForTree(current_seq, 0, seq_len-1);  
-      if (misses_on_this_seq < seq_hdist) {
-	seq_hdist = misses_on_this_seq;
-      }
+    // We compare current_seq with each sequence in our database tree
+    for (int i = 0; i < normal.trees.size(); i++) { 
+        // Have we seen any sequences starting with element i?  If not, we
+        // can go on to consider sequences starting with element i+1.
+        if (normal.trees_found[i]) { 
+            misses_on_this_seq =
+                normal.trees[i].ComputeHDistForTree(current_seq, 0, seq_len-1);  
+            if (misses_on_this_seq < seq_hdist) {
+                seq_hdist = misses_on_this_seq;
+            }
+        }
+    }  
+
+    if (seq_hdist > max_hdist) {
+        max_hdist = seq_hdist;
     }
-  }  
-
-  if (seq_hdist > max_hdist) {
-    max_hdist = seq_hdist;
-  }
 } 
 
 
@@ -246,30 +288,30 @@ void Stream::ComputeHDist(const SeqForest &normal)
 
 void Stream::ComputeLF(const int is_anom, const int lf_size)
 {
-  // When num_seqs_fnd is less than lf_size, the locality frame
-  // array is not full
-  if (num_seqs_fnd <= lf_size) {
-     lf[num_seqs_fnd-1] = is_anom;
-     seq_lfc += is_anom;
-  }
-  else {
-    // We're about to remove the first element of lf; since seq_lfc is
-    // the sum of the elements of lf, we should subtract lf[0] from
-    // seq_lfc to remove it from the sum.
-    seq_lfc -= lf[0];
-    // Now we add is_anom and seq_lfc is the sum of the new locality
-    // frame.
-    seq_lfc += is_anom;
-
-    // roll over the array
-    for (int i = 0; i < lf_size-1; i++) {
-      lf[i] = lf[i+1];
+    // When num_seqs_fnd is less than lf_size, the locality frame
+    // array is not full
+    if (num_seqs_fnd <= lf_size) {
+        lf[num_seqs_fnd-1] = is_anom;
+        seq_lfc += is_anom;
     }
-    lf[lf_size-1] = is_anom;
-  }
-  if (seq_lfc > max_lfc) {
-    max_lfc = seq_lfc;
-  }
+    else {
+        // We're about to remove the first element of lf; since seq_lfc is
+        // the sum of the elements of lf, we should subtract lf[0] from
+        // seq_lfc to remove it from the sum.
+        seq_lfc -= lf[0];
+        // Now we add is_anom and seq_lfc is the sum of the new locality
+        // frame.
+        seq_lfc += is_anom;
+
+        // roll over the array
+        for (int i = 0; i < lf_size-1; i++) {
+            lf[i] = lf[i+1];
+        }
+        lf[lf_size-1] = is_anom;
+    }
+    if (seq_lfc > max_lfc) {
+        max_lfc = seq_lfc;
+    }
 }
 
 /*********************************************************************
@@ -297,31 +339,31 @@ void Stream::ComputeLF(const int is_anom, const int lf_size)
  ********************************************************************/
 
 void Stream::ReportSeq(const Config &cfg, const int total_pairs_read,
-		       const int is_anom)   const
+        const int is_anom)   const
 {
-  for (int i = 0; i < cfg.num_fvars; i++) {
-    switch (cfg.write_val[i]) {
-    case 'a':
-      printf(cfg.fmt_str[i], is_anom); break;
-    case 'c':
-      if (cfg.lf_size > 1) {
-	printf(cfg.fmt_str[i], seq_lfc); 
-      }
-      break;
-    case 'h':
-      if (cfg.compute_hdist) {
-	printf(cfg.fmt_str[i], seq_hdist); 
-      }
-      break;
-    case 'i': 
-      printf(cfg.fmt_str[i], num_pairs_read); break;
-    case 'p':
-      printf(cfg.fmt_str[i], total_pairs_read); break;
-    case 's': 
-      printf(cfg.fmt_str[i], ext_sid); break;
+    for (int i = 0; i < cfg.num_fvars; i++) {
+        switch (cfg.write_val[i]) {
+            case 'a':
+                printf(cfg.fmt_str[i], is_anom); break;
+            case 'c':
+                if (cfg.lf_size > 1) {
+                    printf(cfg.fmt_str[i], seq_lfc); 
+                }
+                break;
+            case 'h':
+                if (cfg.compute_hdist) {
+                    printf(cfg.fmt_str[i], seq_hdist); 
+                }
+                break;
+            case 'i': 
+                printf(cfg.fmt_str[i], num_pairs_read); break;
+            case 'p':
+                printf(cfg.fmt_str[i], total_pairs_read); break;
+            case 's': 
+                printf(cfg.fmt_str[i], ext_sid); break;
+        }
     }
-  }
-  printf(cfg.fmt_str[cfg.num_fvars]);
+    printf(cfg.fmt_str[cfg.num_fvars]);
 }
 
 
@@ -346,21 +388,21 @@ void Stream::ReportSeq(const Config &cfg, const int total_pairs_read,
  ********************************************************************/
 
 void Stream::ReportNewSeq(const Config &cfg, const int total_pairs_read,
-			  const int db_size) const
+        const int db_size) const
 {
-  for (int i = 0; i < cfg.num_fvars; i++) {
-    switch (cfg.write_val[i]) {
-    case 'd':
-      printf(cfg.fmt_str[i], db_size); break;
-    case 'i': 
-      printf(cfg.fmt_str[i], num_pairs_read); break;
-    case 'p':
-      printf(cfg.fmt_str[i], total_pairs_read); break;
-    case 's': 
-      printf(cfg.fmt_str[i], ext_sid); break;
+    for (int i = 0; i < cfg.num_fvars; i++) {
+        switch (cfg.write_val[i]) {
+            case 'd':
+                printf(cfg.fmt_str[i], db_size); break;
+            case 'i': 
+                printf(cfg.fmt_str[i], num_pairs_read); break;
+            case 'p':
+                printf(cfg.fmt_str[i], total_pairs_read); break;
+            case 's': 
+                printf(cfg.fmt_str[i], ext_sid); break;
+        }
     }
-  }
-  printf(cfg.fmt_str[cfg.num_fvars]);
+    printf(cfg.fmt_str[cfg.num_fvars]);
 }
 
 

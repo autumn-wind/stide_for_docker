@@ -88,7 +88,7 @@ int ExtToInt(HashTableInt &sid_table, int key, int next_value)
  *   Output: 0 if successful, -1 if unsuccessful                     *
  *********************************************************************/
 
-void* stide_for_docker(void *)
+void* stide_for_docker(void *arg)
 
 {
 	Config cfg;    
@@ -123,12 +123,15 @@ void* stide_for_docker(void *)
 	int init_db_size = 0;                   // Number of unique
 	// sequences in the
 	// pre-existing database 
-
-
-
-
+    
 	// Read database into normal, if database exists
 	db_size = init_db_size = ReadDB(normal, cfg.db_name, cfg.seq_len);
+
+    
+    if(*(int *)arg == 1) 
+        cfg.add_to_db = 1;
+    else
+        cfg.add_to_db = 0;
 
 	if (cfg.add_to_db)
 	{
@@ -136,7 +139,8 @@ void* stide_for_docker(void *)
 					GetReadyStream(streams, sid_table, num_streams_fnd,
 						total_pairs_read, cfg)) != NULL)
 		{ 
-			active_stream->AddToDB(normal, db_size, total_pairs_read, cfg); 
+			if( 2 == active_stream->AddToDB(normal, db_size, total_pairs_read, cfg) )
+                break;
 		}
 		WriteDB(normal, cfg.db_name, db_size, cfg.seq_len);
 		if (cfg.output_graph)
@@ -152,7 +156,8 @@ void* stide_for_docker(void *)
 					GetReadyStream(streams, sid_table, num_streams_fnd,
 						total_pairs_read, cfg)) != NULL)
 		{ 
-			active_stream->CompareSeq(cfg, normal, total_pairs_read);
+			if( !active_stream->CompareSeq(cfg, normal, total_pairs_read) )
+                break;
 		}
 	}
 
@@ -196,6 +201,9 @@ Stream *GetReadyStream(vector<Stream> &streams, HashTableInt
 	int int_sid;
 	int sval;
 
+    static double last_num_of_unique_seq = 0;
+    static int counter = 0;
+
 	//cin >> ext_sid;
 	//while (!cin.eof()) {
 		//if (ext_sid == -1) {
@@ -204,8 +212,8 @@ Stream *GetReadyStream(vector<Stream> &streams, HashTableInt
 		//    int_sid = sid_table.ExtToInt(ext_sid, num_streams_fnd);
 	while(true) {
 
-		if (total_pairs_read >= MAX_PARIS_LIM)
-			break;
+		//if (total_pairs_read >= MAX_PARIS_LIM)
+			//break;
 		
 		//cin >> ext_sid;
 		//cin >> sval;

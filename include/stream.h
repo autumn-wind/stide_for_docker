@@ -15,7 +15,7 @@ class Stream {
     void Append(const int next_value);
     int AddToDB(SeqForest &normal, int &db_size, int total_pairs_read,
 		const Config &cfg) const;  
-    void CompareSeq(const Config &cfg, const SeqForest &normal, const 
+    int CompareSeq(const Config &cfg, const SeqForest &normal, const 
 		    int total_pairs_read); 
     int GetMaxHDist(void) const {return max_hdist;}
     int GetMaxLFC(void) const {return max_lfc;}
@@ -24,6 +24,13 @@ class Stream {
     int GetNumPairsRead(void) const {return num_pairs_read;}
     int GetNumSeqsFnd(void) const {return num_seqs_fnd;}
   private:
+    static int valid_seq_num;
+    static int last_num_of_uniques;
+    static int num_of_uniques;
+    static int last_num_of_anoms;
+    static int num_of_anoms;
+    static int counter_of_successive_low_incresement;
+
     vector<int> current_seq; // current sequence being filled or
 			    // processed 
     int num_in_seq;         // current_seq is full up through
