@@ -89,6 +89,8 @@ void* trace_container_process(void *arg) {
 	return (void *)0;
 }
 
+string CID;
+
 int main(int argc, char *argv[]) {
     if(argc != 3)
         err_EXIT("wrong argument");
@@ -101,6 +103,9 @@ int main(int argc, char *argv[]) {
 	string path_part2(argv[1]);
 	string path_part3("/tasks");
 	string tasks_file_path = path_part1 + path_part2 + path_part3;
+
+    //get the container's id
+    CID = path_part2;
 
 	//tasks file
 	ifstream ftasks;

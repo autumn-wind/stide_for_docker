@@ -3,6 +3,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <cstring>
 #include "stream.h"
 
 /********************************************************************
@@ -174,6 +175,8 @@ int Stream::AddToDB(SeqForest &normal, int &db_size, const int
  *    Output: none                                                   *
  ********************************************************************/
 
+extern string CID;
+
 int Stream::CompareSeq(const Config &cfg, const SeqForest &normal,
         const int total_pairs_read) 
 {
@@ -185,10 +188,17 @@ int Stream::CompareSeq(const Config &cfg, const SeqForest &normal,
     num_of_anoms += is_anom;
 
     if((valid_seq_num & 0xFF) == 0) {
+        cout << "comparing" << endl;
         if(( num_of_anoms - last_num_of_anoms ) * 1.0 / 0x100 >= 0.15) {
-            cout << "alarm!" << endl;
+            cout << "alarm! going to stop the whole container!" << endl;
             cout << last_num_of_anoms << "  " << num_of_anoms << "  " << num_of_anoms - last_num_of_anoms << endl;
-            return 0;
+            string cmd("docker stop ");
+            cmd += CID;
+            char *const stop_container_cmd = new char[cmd.length() + 1];
+            strcpy(stop_container_cmd, cmd.c_str());
+            system(stop_container_cmd);
+            cout << "container " << CID << " has been stopped." << endl;
+            exit(1);
         }
         last_num_of_anoms = num_of_anoms;
     }
