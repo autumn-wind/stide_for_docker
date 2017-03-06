@@ -9,6 +9,7 @@
 !README
 !COPYING
 !sample.config
+!*.db
 !src
 !include
-!trace-part
+!misc
