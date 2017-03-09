@@ -4,7 +4,12 @@
 #include <iostream>
 #include <fstream>
 #include <cstring>
+
+#include <sys/times.h>
+#include <unistd.h>
+
 #include "stream.h"
+#include "common.h"
 
 /********************************************************************
  *  Init()                                                          *
@@ -110,6 +115,9 @@ void Stream::Append(const int new_value)
  * Output: 0 if sequence isn't new, 1 if it is                      *
  ********************************************************************/
 
+#define SEC_PER_FIVE_MIN 300
+#define SEC_PER_MIN 60
+#define SEC_PER_HOUR 3600
 
 int Stream::AddToDB(SeqForest &normal, int &db_size, const int
         total_pairs_read, const Config &cfg) const 
@@ -132,31 +140,53 @@ int Stream::AddToDB(SeqForest &normal, int &db_size, const int
     valid_seq_num += 1;
     num_of_uniques += is_new;
 
-    // when we read 4K valid_seqs, we should count how many unique seqs we have and calculate the increasement
-    if(( valid_seq_num & 0xFFF ) == 0) {
-        if((num_of_uniques - last_num_of_uniques) * 1.0 / 0x1000 <= 0.001) {
-            counter_of_successive_low_incresement += 1;
-            // if in successive 10 times, the increase rate is less than 0.001, we should stop the monitoring
-            if(counter_of_successive_low_incresement >= 10) {
-                return 2;
-            }
-        }
-        // if the increasement rate is larger than 0.001, make counter_of_successive_low_incresement begin at 0
-        else {
-            counter_of_successive_low_incresement = 0;
-        }
-        last_num_of_uniques = num_of_uniques;
-        cout << counter_of_successive_low_incresement << "  " << last_num_of_uniques << endl;
+    static clock_t first_time = times(NULL);
+    if(first_time == -1)
+        err_EXIT("times error");
+
+    static long clktck = 0;
+    if(clktck == 0) {
+        if((clktck = sysconf(_SC_CLK_TCK)) < 0)
+            err_EXIT("sysconf error");
     }
 
-    if ((is_new && cfg.verbose) || cfg.very_verbose)
-    {
-        ReportNewSeq(cfg, total_pairs_read, db_size);
-    } 
+    static long time_to_reach = 0;
 
-    if (is_new) 
-        return 1;
-    else 
+    if(time_to_reach >= SEC_PER_HOUR) {
+        return 2;
+    }
+
+    long cur_time = times(NULL);
+    if((cur_time - first_time) / (double)clktck >= time_to_reach) {
+        cout << time_to_reach / SEC_PER_MIN << " min: " << num_of_uniques << endl;
+        time_to_reach += SEC_PER_MIN;
+    }
+
+     //when we read 4K valid_seqs, we should count how many unique seqs we have and calculate the increasement
+    //if(( valid_seq_num & 0xFFF ) == 0) {
+        //if(num_of_uniques == last_num_of_uniques) {
+            //counter_of_successive_low_incresement += 1;
+             //if in successive 10 times, the increment is 0, we should stop the monitoring
+            //if(counter_of_successive_low_incresement >= 10) {
+                //return 2;
+            //}
+        //}
+         //if the increment is not 0, make counter_of_successive_low_incresement begin at 0
+        //else {
+            //counter_of_successive_low_incresement = 0;
+        //}
+        //last_num_of_uniques = num_of_uniques;
+        //cout << counter_of_successive_low_incresement << "  " << last_num_of_uniques << endl;
+    //}
+
+    //if ((is_new && cfg.verbose) || cfg.very_verbose)
+    //{
+        //ReportNewSeq(cfg, total_pairs_read, db_size);
+    //} 
+
+    //if (is_new) 
+        //return 1;
+    //else 
         return 0;
 } 
 
@@ -188,32 +218,32 @@ int Stream::CompareSeq(const Config &cfg, const SeqForest &normal,
     num_of_anoms += is_anom;
 
     if((valid_seq_num & 0xFF) == 0) {
-        cout << "comparing" << endl;
-        if(( num_of_anoms - last_num_of_anoms ) * 1.0 / 0x100 >= 0.15) {
-            cout << "alarm! going to stop the whole container!" << endl;
-            cout << last_num_of_anoms << "  " << num_of_anoms << "  " << num_of_anoms - last_num_of_anoms << endl;
-            string cmd("docker stop ");
-            cmd += CID;
-            char *const stop_container_cmd = new char[cmd.length() + 1];
-            strcpy(stop_container_cmd, cmd.c_str());
-            system(stop_container_cmd);
-            cout << "container " << CID << " has been stopped." << endl;
-            exit(1);
-        }
+        cout << num_of_anoms - last_num_of_anoms << endl;
+        //if(num_of_anoms - last_num_of_anoms >= 15) {
+            //cout << "alarm! going to stop the whole container!" << endl;
+            //cout << last_num_of_anoms << "  " << num_of_anoms << "  " << num_of_anoms - last_num_of_anoms << endl;
+            //string cmd("docker stop ");
+            //cmd += CID;
+            //char *const stop_container_cmd = new char[cmd.length() + 1];
+            //strcpy(stop_container_cmd, cmd.c_str());
+            //system(stop_container_cmd);
+            //cout << "container " << CID << " has been stopped." << endl;
+            //exit(1);
+        //}
         last_num_of_anoms = num_of_anoms;
     }
 
-    if ((is_anom) && (cfg.compute_hdist)) {
-        ComputeHDist(normal);
-    }
-    if (cfg.lf_size > 1) {
-        ComputeLF(is_anom, cfg.lf_size);
-    }
-    // if we're in verbose mode and either current_seq is an anomaly or
-    // its locality frame contains an anomaly, report it
-    if ((cfg.very_verbose) || (cfg.verbose && (is_anom || seq_lfc))) {
-        ReportSeq(cfg, total_pairs_read, is_anom);
-    }
+    //if ((is_anom) && (cfg.compute_hdist)) {
+        //ComputeHDist(normal);
+    //}
+    //if (cfg.lf_size > 1) {
+        //ComputeLF(is_anom, cfg.lf_size);
+    //}
+    //// if we're in verbose mode and either current_seq is an anomaly or
+    //// its locality frame contains an anomaly, report it
+    //if ((cfg.very_verbose) || (cfg.verbose && (is_anom || seq_lfc))) {
+        //ReportSeq(cfg, total_pairs_read, is_anom);
+    //}
     return 1;
 }
 

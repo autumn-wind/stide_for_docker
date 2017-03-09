@@ -4,12 +4,10 @@
 !*.c
 !*.C
 !*.cpp
-!*.sh
 !Makefile
 !README
 !COPYING
 !sample.config
-!*.db
 !src
 !include
 !misc
