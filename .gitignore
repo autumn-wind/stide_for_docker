@@ -4,6 +4,7 @@
 !*.c
 !*.C
 !*.cpp
+!*.sh
 !Makefile
 !README
 !COPYING
