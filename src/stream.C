@@ -158,7 +158,7 @@ int Stream::AddToDB(SeqForest &normal, int &db_size, const int
 
     long cur_time = times(NULL);
     if((cur_time - first_time) / (double)clktck >= time_to_reach) {
-        cout << time_to_reach / SEC_PER_MIN << " min: " << num_of_uniques << endl;
+        cout << time_to_reach / SEC_PER_MIN << " min:\t" << total_pairs_read << "\t" << num_of_uniques << endl;
         time_to_reach += SEC_PER_MIN;
     }
 
