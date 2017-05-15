@@ -52,7 +52,7 @@ void* trace_container_process(void *arg) {
 
 		//the tracee exits or being terminated
 		if (WIFEXITED(status) || WIFSIGNALED(status)) {
-			printf("The tracee has exited or been terminated.\n");
+			//printf("The tracee has exited or been terminated.\n");
 			return (void *)1;
 		}
 
@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
         err_EXIT("wrong argument");
 	
 	//wait for container init totally
-	sleep(5);
+	sleep(15);
 
 	//form the path of container tasks file
 	string path_part1("/sys/fs/cgroup/devices/docker/");

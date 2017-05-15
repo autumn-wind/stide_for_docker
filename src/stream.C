@@ -152,7 +152,7 @@ int Stream::AddToDB(SeqForest &normal, int &db_size, const int
 
     static long time_to_reach = 0;
 
-    if(time_to_reach >= SEC_PER_HOUR) {
+    if(time_to_reach >= 2 * SEC_PER_HOUR) {
         return 2;
     }
 
@@ -219,17 +219,20 @@ int Stream::CompareSeq(const Config &cfg, const SeqForest &normal,
 
     if((valid_seq_num & 0xFF) == 0) {
         cout << num_of_anoms - last_num_of_anoms << endl;
-        //if(num_of_anoms - last_num_of_anoms >= 15) {
-            //cout << "alarm! going to stop the whole container!" << endl;
+        if(num_of_anoms - last_num_of_anoms >= 25) {
+            cout << "Alarm! The container may already been hacked!" << endl
+            << "Going to stop the whole container." << endl
+            << "Local mismatch rate: " << (num_of_anoms - last_num_of_anoms) * 100.0 / 0xFF
+            << "%" << endl;
             //cout << last_num_of_anoms << "  " << num_of_anoms << "  " << num_of_anoms - last_num_of_anoms << endl;
-            //string cmd("docker stop ");
-            //cmd += CID;
-            //char *const stop_container_cmd = new char[cmd.length() + 1];
-            //strcpy(stop_container_cmd, cmd.c_str());
-            //system(stop_container_cmd);
-            //cout << "container " << CID << " has been stopped." << endl;
-            //exit(1);
-        //}
+            string cmd("docker stop ");
+            cmd += CID;
+            char *const stop_container_cmd = new char[cmd.length() + 1];
+            strcpy(stop_container_cmd, cmd.c_str());
+            system(stop_container_cmd);
+            cout << "The container " << CID << " has been stopped." << endl;
+            exit(1);
+        }
         last_num_of_anoms = num_of_anoms;
     }
 
