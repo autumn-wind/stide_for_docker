@@ -6,9 +6,10 @@
 !*.cpp
 !*.sh
 !Makefile
-!README
+!README.md
 !COPYING
 !sample.config
 !src
 !include
 !misc
+!UserDoc
